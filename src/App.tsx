@@ -18,19 +18,10 @@ const App = () => {
 
     try {
       const response = await axios.post(
-        'https://api.replicate.com/v1/predictions',
+        'http://localhost:5000/replicate',
         {
-          version: "c81609117f666d3a86b262447f80d41ac5158a76adb56893301843a23165eaf8",
-          input: {
-            task_input: "Caption",
-            image: capturedImage,
-          },
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${process.env.REACT_APP_REPLICATE_API_TOKEN}`,
-            'Content-Type': 'application/json',
-          },
+          task_input: "Caption",
+          image: capturedImage,
         }
       );
 
