@@ -3,40 +3,55 @@ import Webcam from 'react-webcam';
 import axios from 'axios';
 
 const App = () => {
-  const [capturedImage, setCapturedImage] = useState(null);
-  const [caption, setCaption] = useState('');
-  const [error, setError] = useState('');
-  const webcamRef = useRef(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [caption, setCaption] = useState<string>('');
+  const [error, setError] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const webcamRef = useRef<Webcam>(null);
 
   const captureImage = useCallback(() => {
-    const imageSrc = webcamRef.current.getScreenshot();
-    setCapturedImage(imageSrc);
-  }, [webcamRef]);
+    try {
+      const imageSrc = webcamRef.current?.getScreenshot();
+      if (imageSrc) {
+        setCapturedImage(imageSrc);
+        setError('');
+      } else {
+        throw new Error('Failed to capture image');
+      }
+    } catch (err) {
+      setError('Failed to capture image. Please try again.');
+    }
+  }, []);
 
   const sendToFlorence2 = useCallback(async () => {
     if (!capturedImage) return;
 
+    setIsLoading(true);
+    setError('');
+
     try {
       const response = await axios.post(
-        'https://api.replicate.com/v1/predictions',
+        'http://localhost:5000/replicate',
         {
-          version: "c81609117f666d3a86b262447f80d41ac5158a76adb56893301843a23165eaf8",
-          input: {
-            task_input: "Caption",
-            image: capturedImage,
-          },
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${process.env.REACT_APP_REPLICATE_API_TOKEN}`,
-            'Content-Type': 'application/json',
-          },
+          image: capturedImage,
         }
       );
 
-      setCaption(response.data.output || 'No caption generated');
+      if (response.data.output && typeof response.data.output === 'object') {
+        if ('<CAPTION>' in response.data.output) {
+          setCaption(response.data.output['<CAPTION>'].replace(/['']/g, ''));
+        } else {
+          setCaption(JSON.stringify(response.data.output));
+        }
+      } else if (typeof response.data.output === 'string') {
+        setCaption(response.data.output);
+      } else {
+        setCaption('No caption generated');
+      }
     } catch (err) {
       setError('Failed to process image with Florence 2. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   }, [capturedImage]);
 
@@ -48,8 +63,9 @@ const App = () => {
         <button
           onClick={captureImage}
           className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          disabled={isLoading}
         >
-          Capture Image
+          {isLoading ? 'Processing...' : 'Capture Image'}
         </button>
       </div>
 
@@ -64,13 +80,21 @@ const App = () => {
 
       {capturedImage && (
         <div className="mb-4">
-          <img src={capturedImage} alt="Captured" className="w-full max-w-md" />
+          <img src={capturedImage} alt="Captured" className="w-full max-w-md mb-2" />
           <button
             onClick={sendToFlorence2}
-            className="mt-2 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+            className={`w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={isLoading}
           >
-            Send to Florence 2
+            {isLoading ? 'Processing...' : 'Send to Florence 2'}
           </button>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="mb-4 text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+          <p className="mt-2">Processing image...</p>
         </div>
       )}
 
